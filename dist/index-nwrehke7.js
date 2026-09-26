@@ -1,7 +1,7 @@
 // @bun
 import {
   isolatedAgentBrowserEnvironment
-} from "./index-g5vsqmdy.js";
+} from "./index-xwxy71ew.js";
 import {
   BoundedByteBuffer
 } from "./index-gh719d91.js";
