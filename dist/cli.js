@@ -1,18 +1,19 @@
 #!/usr/bin/env bun
 // @bun
 import {
+  describeUsageError,
   main,
   parseArguments,
   runExecutable,
   usage
-} from "./index-ywdcqe7v.js";
+} from "./index-2xn7faan.js";
 import"./index-0eacgvpv.js";
-import"./index-054mb7d3.js";
+import"./index-vz3znpf4.js";
 import"./index-r4qs6vq4.js";
 import"./index-j4zgmzjr.js";
-import"./index-de2w8crk.js";
+import"./index-39ftk83z.js";
 import"./index-6jcz0m1c.js";
-import"./index-f984hw45.js";
+import"./index-mt8tvnkt.js";
 import"./index-fc4dr114.js";
 import"./index-5n05se68.js";
 import"./index-g5vsqmdy.js";
@@ -61,7 +62,7 @@ import {
 
 // src/cli.ts
 if (import.meta.main) {
-  const { standaloneSupportEnvironment, isUsefulSupportResult, runProductSupportCommand, showProductSupportInvitation } = await import("./support-5axb4ce0.js");
+  const { standaloneSupportEnvironment, isUsefulSupportResult, runProductSupportCommand, showProductSupportInvitation } = await import("./support-8jjg9ky4.js");
   const env = standaloneSupportEnvironment();
   const args = process.argv.slice(2);
   if (args[0] === "support") {
@@ -77,5 +78,6 @@ export {
   usage,
   runExecutable,
   parseArguments,
-  main
+  main,
+  describeUsageError
 };

@@ -10,9 +10,13 @@ import {
   extractPage,
   extractionShowsAccessControl,
   localizeAssets,
+  renderFailure,
   scoreExtraction,
-  sniffImage
-} from "./index-f984hw45.js";
+  sentence,
+  sniffImage,
+  stderrStyle,
+  terminalOutput
+} from "./index-mt8tvnkt.js";
 import {
   adapterCapabilities,
   inspectClipEnvironment,
@@ -2359,10 +2363,10 @@ async function runCapture(rawOptions, dependencies = {}) {
 }
 
 // src/clip/cli.ts
-var defaultOutput = {
+var defaultOutput = terminalOutput({
   stdout: (value) => process.stdout.write(value),
   stderr: (value) => process.stderr.write(value)
-};
+});
 function line(value) {
   return value.endsWith(`
 `) ? value : `${value}
@@ -2415,9 +2419,9 @@ async function diagnosticCommand(arguments_, output, inspectEnvironment) {
 async function main(rawArguments = process.argv.slice(2), environment = process.env, output = defaultOutput, dependencies = {}, runtimeOptions = {}) {
   const parsed = parseArguments(rawArguments, environment);
   if (!parsed.ok) {
-    output.stderr(`error: ${safe(parsed.message)}
-
-${sanitizeTerminalText(usage)}`);
+    const first = rawArguments[0];
+    const next = first === "doctor" || first === "adapters" || first === "inspect" ? `wordcell ${first} --help` : "wordcell clip --help";
+    output.stderr(renderFailure(sentence(safe(parsed.message)), next, stderrStyle(environment, output)));
     return 2;
   }
   const arguments_ = parsed.value;
@@ -2470,8 +2474,7 @@ ${sanitizeTerminalText(usage)}`);
     if (arguments_.json)
       output.stdout(terminalSafeJson({ ok: false, error: message }));
     else
-      output.stderr(`error: ${message}
-`);
+      output.stderr(renderFailure(message, "wordcell doctor", stderrStyle(environment, output)));
     return 1;
   }
 }
