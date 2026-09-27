@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- The [benchmarks page](https://wordcell.io/benchmarks) now leads with Oh's
+  500-question LongMemEval-S study, where Oh semantic retrieval scored 88.87%
+  and BM25 86.13%; on the measure Oh named before the run, its interval does
+  not rule out a tie. Oh's smaller Supermemory pilot remains the only matched
+  comparison with Supermemory.
+
 ## 0.23.0
 
 Wordcell can serve a vault to local Model Context Protocol clients and import
