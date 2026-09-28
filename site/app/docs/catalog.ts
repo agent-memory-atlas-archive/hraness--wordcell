@@ -76,7 +76,7 @@ export const docCatalog = [
   },
   {
     slug: "portfolio",
-    title: "Portfolio federation",
+    title: "Search several vaults together",
     summary: "Search and link across only the vaults you explicitly select and authorize.",
     quadrant: "how-to",
   },
@@ -107,7 +107,7 @@ export const docCatalog = [
   {
     slug: "platform-submission",
     title: "Hosted publication API",
-    summary: "The live wordcell.io publication surface: endpoints, MCP tools, and the verified evidence record.",
+    summary: "Endpoints, MCP tools, tokens, and limits for hosting a site built from selected notes on wordcell.io.",
     quadrant: "reference",
   },
   {
@@ -118,13 +118,13 @@ export const docCatalog = [
   },
   {
     slug: "design",
-    title: "Design",
+    title: "Why Wordcell keeps everything in Markdown",
     summary: "Why Wordcell keeps everything in Markdown files, and how its storage, search, graph, and capture fit together.",
     quadrant: "explanation",
   },
   {
     slug: "agent-memory",
-    title: "Markdown memory for coding agents",
+    title: "Why agent memory belongs in Markdown beside the repository",
     summary: "Why durable agent memory belongs in inspectable Markdown beside the repository.",
     quadrant: "explanation",
   },
@@ -147,6 +147,21 @@ export const docCatalog = [
     quadrant: "explanation",
   },
 ] as const satisfies readonly DocEntry[];
+
+/** The README rendered at /docs/overview, listed apart from the docs/ catalog. */
+export const docOverview = {
+  slug: "overview",
+  title: "Wordcell overview",
+  summary: "What Wordcell does, how to install it, and how a coding agent uses a vault, on one page.",
+  quadrant: null,
+  sourcePath: "README.md",
+} as const;
+
+/** The title a documentation route shows, or null for an unknown slug. */
+export function docTitle(slug: string): string | null {
+  if (slug === docOverview.slug) return docOverview.title;
+  return docCatalog.find((entry) => entry.slug === slug)?.title ?? null;
+}
 
 const seen = new Set<string>();
 for (const entry of docCatalog) {
