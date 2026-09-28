@@ -1,0 +1,11 @@
+{
+  "origin": "https://wordcell.io",
+  "routes": [
+    "/"
+  ],
+  "prefixes": [
+    "*"
+  ],
+  "minimalRoutes": [],
+  "appearance": "palette"
+}
