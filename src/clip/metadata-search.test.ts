@@ -7,6 +7,7 @@ import {
   linkSync,
   mkdtempSync,
   realpathSync,
+  readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -380,4 +381,94 @@ describe("exact URL metadata query", () => {
     expect(createExactUrlSearchQuery("file:///tmp/article")).toBeNull();
     expect(createExactUrlSearchQuery("not a URL")).toBeNull();
   });
+});
+
+
+test("joined provider retains sorted categorical failures without exposing stderr", async () => {
+  const fixture = executable(`
+    const request = JSON.parse(await Bun.stdin.text());
+    if (request.diagnostics !== true) process.exit(2);
+    process.stderr.write("secret provider error https://private.invalid " + request.query);
+    process.stdout.write(JSON.stringify({ query: request.query, results: [],
+      engines_queried: ["yahoo", "brave"], engines_failed: ["yahoo", "brave"],
+      engine_failures: [{engine:"yahoo",code:"http-rate-limited"},{engine:"brave",code:"http-forbidden"}]
+    }));
+  `);
+  const outcome = await createRustMetadataSearchProvider({ binaryPath: fixture.path })({ query: "query" });
+  expect(outcome.status).toBe("success");
+  if (outcome.status !== "success") throw Error("Expected joined diagnostics");
+  expect(outcome.response.engineStatus).toBe("unavailable");
+  expect(outcome.response.engineFailures).toEqual([
+    { engine: "brave", code: "http-forbidden" }, { engine: "yahoo", code: "http-rate-limited" },
+  ]);
+  expect(JSON.stringify(outcome)).not.toContain("private.invalid");
+  expect(JSON.stringify(outcome)).not.toContain("secret provider");
+});
+
+
+test("old helper rejection is terminal and does not retry without diagnostics", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "metadata-search-attempts-"));
+  temporaryDirectories.push(directory);
+  const attempts = join(directory, "attempts");
+  const fixture = executable(`
+    const request = JSON.parse(await Bun.stdin.text());
+    const { appendFileSync } = await import("node:fs");
+    appendFileSync(${JSON.stringify(attempts)}, String(request.diagnostics) + "\\n");
+    if (Object.hasOwn(request, "diagnostics")) process.exit(2);
+  `);
+  const outcome = await createRustMetadataSearchProvider({ binaryPath: fixture.path })({ query: "query" });
+  expectFailure(outcome, "process");
+  expect(readFileSync(attempts, "utf8")).toBe("true\n");
+});
+
+test("Bing RSS is opt-in, pins only its fixed public host, and snapshots configuration", async () => {
+  for (const enabled of [false, true]) {
+    const directory = mkdtempSync(join(tmpdir(), "metadata-bing-"));
+    temporaryDirectories.push(directory);
+    const requestPath = join(directory, "request.json");
+    const fixture = executable(`
+      const request = JSON.parse(await Bun.stdin.text());
+      const { writeFileSync } = await import("node:fs");
+      writeFileSync(${JSON.stringify(requestPath)}, JSON.stringify(request));
+      process.stdout.write(JSON.stringify({query:request.query, results:[], engines_queried:["bing"], engines_failed:[]}));
+    `);
+    const hosts: string[] = [];
+    const options = {binaryPath:fixture.path, enableBingRss:enabled, resolveNetworkTarget:async (url:URL) => {
+      hosts.push(url.hostname); return testNetworkAddresses;
+    }};
+    const provider = createProductionMetadataSearchProvider(options);
+    options.enableBingRss = !enabled;
+    expect((await provider({query:"public query"})).status).toBe("success");
+    const request = JSON.parse(readFileSync(requestPath,"utf8"));
+    const expected = ["html.duckduckgo.com","search.brave.com","www.startpage.com","search.yahoo.com", ...(enabled ? ["www.bing.com"] : [])];
+    expect(hosts).toEqual(expected);
+    expect(request.engine_hosts.map((host:{hostname:string})=>host.hostname)).toEqual(expected);
+    expect(request.bing_rss).toBe(enabled ? true : undefined);
+  }
+});
+
+test("OpenAlex discovery is opt-in, pins only its fixed public host, and snapshots configuration", async () => {
+  for (const enabled of [false, true]) {
+    const directory = mkdtempSync(join(tmpdir(), "metadata-openalex-"));
+    temporaryDirectories.push(directory);
+    const requestPath = join(directory, "request.json");
+    const fixture = executable(`
+      const request = JSON.parse(await Bun.stdin.text());
+      const { writeFileSync } = await import("node:fs");
+      writeFileSync(${JSON.stringify(requestPath)}, JSON.stringify(request));
+      process.stdout.write(JSON.stringify({query:request.query, results:[], engines_queried:["openalex"], engines_failed:[]}));
+    `);
+    const hosts: string[] = [];
+    const options = {binaryPath:fixture.path, enableOpenAlexDiscovery:enabled, resolveNetworkTarget:async (url:URL) => {
+      hosts.push(url.hostname); return testNetworkAddresses;
+    }};
+    const provider = createProductionMetadataSearchProvider(options);
+    options.enableOpenAlexDiscovery = !enabled;
+    expect((await provider({query:"public query"})).status).toBe("success");
+    const request = JSON.parse(readFileSync(requestPath,"utf8"));
+    const expected = ["html.duckduckgo.com","search.brave.com","www.startpage.com","search.yahoo.com", ...(enabled ? ["api.openalex.org"] : [])];
+    expect(hosts).toEqual(expected);
+    expect(request.engine_hosts.map((host:{hostname:string})=>host.hostname)).toEqual(expected);
+    expect(request.openalex_discovery).toBe(enabled ? true : undefined);
+  }
 });

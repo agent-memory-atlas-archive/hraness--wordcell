@@ -11,7 +11,7 @@
 Copy this prompt into Codex, Claude Code, or another coding agent:
 
 ```text
-Install the `wordcell` Agent Skill from `hraness/wordcell#v0.24.1` with the standard skills
+Install the `wordcell` Agent Skill from `hraness/wordcell#v0.25.0` with the standard skills
 CLI. Use the skill's runtime instructions to install the exact
 versioned GitHub release archive only when the command is missing. Verify it
 with `wordcell doctor` and `wordcell --help`, but do not initialize or modify a vault until
@@ -21,8 +21,8 @@ I ask.
 Install the single public skill with either runner:
 
 ```sh
-npx skills add hraness/wordcell#v0.24.1
-bunx skills add hraness/wordcell#v0.24.1
+npx skills add hraness/wordcell#v0.25.0
+bunx skills add hraness/wordcell#v0.25.0
 ```
 
 Both commands discover the same `wordcell` skill and install it into the selected
@@ -39,7 +39,7 @@ installed skill is byte-identical to the repository source.
 Install the two global commands with Bun:
 
 ```sh
-bun add --global --ignore-scripts https://github.com/hraness/wordcell/releases/download/v0.24.1/hraness-wordcell-0.24.1.tgz
+bun add --global --ignore-scripts https://github.com/hraness/wordcell/releases/download/v0.25.0/hraness-wordcell-0.25.0.tgz
 wordcell --help
 wordcell-evaluation-builder --help
 ```
@@ -47,7 +47,7 @@ wordcell-evaluation-builder --help
 The same GitHub archive can be installed with npm:
 
 ```sh
-npm install --global --ignore-scripts https://github.com/hraness/wordcell/releases/download/v0.24.1/hraness-wordcell-0.24.1.tgz
+npm install --global --ignore-scripts https://github.com/hraness/wordcell/releases/download/v0.25.0/hraness-wordcell-0.25.0.tgz
 wordcell --help
 ```
 
@@ -60,7 +60,7 @@ reviewed and enabled; run `wordcell doctor` to inspect the resulting capabilitie
 For programmatic use, add the versioned GitHub archive to a Bun project:
 
 ```sh
-bun add --exact --ignore-scripts https://github.com/hraness/wordcell/releases/download/v0.24.1/hraness-wordcell-0.24.1.tgz
+bun add --exact --ignore-scripts https://github.com/hraness/wordcell/releases/download/v0.25.0/hraness-wordcell-0.25.0.tgz
 ```
 
 The resulting dependency should remain exact:
@@ -68,7 +68,7 @@ The resulting dependency should remain exact:
 ```json
 {
   "dependencies": {
-    "@hraness/wordcell": "https://github.com/hraness/wordcell/releases/download/v0.24.1/hraness-wordcell-0.24.1.tgz"
+    "@hraness/wordcell": "https://github.com/hraness/wordcell/releases/download/v0.25.0/hraness-wordcell-0.25.0.tgz"
   }
 }
 ```
@@ -381,6 +381,29 @@ connection-pool boundary at `@hraness/wordcell/clip/network`, and the browser pr
 diffs, and the explicit local job ledger are available from
 `@hraness/wordcell/clip/bundle-reader`, `@hraness/wordcell/clip/refresh`, and
 `@hraness/wordcell/clip/jobs`.
+
+Metadata-search responses optionally expose `engineFailures`, containing exactly one
+`{ engine, code }` entry for each failed engine. Codes distinguish timeouts, HTTP
+403/429/redirect responses, challenges, unsupported or oversized bodies, and
+unrecognized result pages without returning raw provider errors. Older provider
+responses omit this field; absence does not mean no failures. The Rust helper emits diagnostics only when its request explicitly sets
+`diagnostics: true`; older callers continue to receive the original four fields.
+The current SDK opts in and requires the matching helper. An older helper rejects
+that request without retrying; upgrade the SDK and helper together. Search results retain their existing `engineStatus` semantics.
+
+The experimental `enableBingRss: true` provider option adds Bing RSS as a fifth
+engine. It is disabled by default. Requests use the same public-network checks,
+redirect refusal, and total time limit. RSS must identify the requested query;
+a missing or different query produces `query-mismatch`, including for an empty
+feed. Matching the query field does not establish that the results are relevant.
+
+The experimental `enableOpenAlexDiscovery: true` provider option adds OpenAlex
+scholarly metadata. It is disabled by default and uses the same network and
+resource limits. Article links come from the provider's response; a link does
+not establish full-text access. The response must identify the requested query.
+Optional `engineUsage` records provider-reported usage, which does not establish
+a billed charge. Neither experimental option changes the four default engines.
+
 
 ### Update a note body conditionally
 
@@ -732,9 +755,9 @@ companion skill for a distinct recurring ritual. The package smoke test keeps
 future tagged packages byte-identical to that source tree.
 
 ```sh
-npx skills add hraness/wordcell#v0.24.1
+npx skills add hraness/wordcell#v0.25.0
 # or
-bunx skills add hraness/wordcell#v0.24.1
+bunx skills add hraness/wordcell#v0.25.0
 ```
 
 The skill invokes the installed `wordcell` command without depending on a repository

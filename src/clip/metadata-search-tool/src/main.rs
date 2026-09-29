@@ -1,3 +1,5 @@
+mod bing;
+mod openalex;
 mod duckduckgo;
 
 use std::alloc::{GlobalAlloc, Layout, System};
@@ -18,7 +20,66 @@ use reqwest::{
     header::{self, HeaderMap, HeaderValue},
     redirect::Policy,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+enum FailureCode {
+    Timeout,
+    Http,
+    HttpBody,
+    HttpStatus,
+    HttpForbidden,
+    HttpRateLimited,
+    HttpRedirect,
+    Parse,
+    UnverifiedEmpty,
+    Challenge,
+    ContentType,
+    ContentEncoding,
+    BodyLimit,
+    BodyEncoding,
+    ResultLimit,
+    UnrecognizedHtml,
+    QueryMismatch,
+}
+
+/// Only bounded categorical diagnostics cross the protocol boundary, never error text.
+#[derive(Serialize)]
+struct EngineFailure {
+    engine: String,
+    code: FailureCode,
+}
+
+#[derive(Serialize)]
+struct EngineUsage { engine: String, reported_cost_usd: f64, billing_status: &'static str }
+
+#[derive(Serialize)]
+struct DiagnosticResponse {
+    #[serde(flatten)]
+    response: SearchResponse,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    engine_failures: Option<Vec<EngineFailure>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    engine_usage: Option<Vec<EngineUsage>>,
+}
+
+fn transport_code(error: &reqwest::Error, otherwise: FailureCode) -> FailureCode {
+    if error.is_timeout() {
+        FailureCode::Timeout
+    } else {
+        otherwise
+    }
+}
+
+fn status_code(status: u16) -> FailureCode {
+    match status {
+        403 => FailureCode::HttpForbidden,
+        429 => FailureCode::HttpRateLimited,
+        300..=399 => FailureCode::HttpRedirect,
+        _ => FailureCode::HttpStatus,
+    }
+}
 
 const MAX_INPUT_BYTES: u64 = 16 * 1024;
 const MAX_QUERY_BYTES: usize = 4 * 1024;
@@ -137,10 +198,25 @@ struct EngineHost {
 #[serde(deny_unknown_fields)]
 struct SearchRequest {
     schema_version: u8,
+    #[serde(default)]
+    diagnostics: bool,
+    #[serde(default)]
+    bing_rss: bool,
+    #[serde(default)]
+    openalex_discovery: bool,
     query: String,
     max_results: usize,
     timeout_ms: u64,
     engine_hosts: Vec<EngineHost>,
+}
+
+fn expected_hosts(bing_rss: bool, openalex_discovery: bool) -> Vec<&'static str> {
+    let mut hosts = ENGINE_HOSTS.to_vec();
+    if bing_rss {
+        hosts.push("www.bing.com");
+    }
+    if openalex_discovery { hosts.push("api.openalex.org"); }
+    hosts
 }
 
 fn read_request() -> Result<SearchRequest, &'static str> {
@@ -165,10 +241,16 @@ fn read_request() -> Result<SearchRequest, &'static str> {
     if !(MIN_TIMEOUT_MS..=MAX_TIMEOUT_MS).contains(&request.timeout_ms) {
         return Err("invalid-timeout");
     }
-    if request.engine_hosts.len() != ENGINE_HOSTS.len() {
+    validate_engine_hosts(&request)?;
+    Ok(request)
+}
+
+fn validate_engine_hosts(request: &SearchRequest) -> Result<(), &'static str> {
+    let expected_hosts = expected_hosts(request.bing_rss, request.openalex_discovery);
+    if request.engine_hosts.len() != expected_hosts.len() {
         return Err("invalid-engine-hosts");
     }
-    for (host, expected) in request.engine_hosts.iter().zip(ENGINE_HOSTS) {
+    for (host, expected) in request.engine_hosts.iter().zip(expected_hosts) {
         if host.hostname != expected
             || host.addresses.is_empty()
             || host.addresses.len() > MAX_ENGINE_ADDRESSES
@@ -176,7 +258,7 @@ fn read_request() -> Result<SearchRequest, &'static str> {
             return Err("invalid-engine-hosts");
         }
     }
-    Ok(request)
+    Ok(())
 }
 
 fn fail(code: &'static str) -> ! {
@@ -332,7 +414,8 @@ async fn run() {
         Ok(request) => request,
         Err(code) => fail(code),
     };
-    let timeout = Duration::from_millis(request.timeout_ms / ENGINE_HOSTS.len() as u64);
+    let timeout =
+        Duration::from_millis(request.timeout_ms / expected_hosts(request.bing_rss, request.openalex_discovery).len() as u64);
     let client = Arc::new(
         build_pinned_http_client(&request.engine_hosts, timeout).unwrap_or_else(|code| fail(code)),
     );
@@ -348,11 +431,41 @@ async fn run() {
     engines_queried.insert(0, "duckduckgo".to_string());
     let mut successes = Vec::new();
     let mut engines_failed = Vec::new();
+    let mut engine_failures = Vec::new();
+    let mut engine_usage = Vec::new();
+    // Optional independent backend runs first within the existing total time budget.
+    if request.openalex_discovery {
+        engines_queried.insert(0, "openalex".to_string());
+        match openalex::search(&client, request.query.trim(), request.max_results, timeout).await {
+            Ok(discovery) => {
+                if let Some(cost)=discovery.reported_cost_usd { engine_usage.push(EngineUsage {engine:"openalex".into(),reported_cost_usd:cost,billing_status:"not-established"}); }
+                successes.push(("openalex".to_string(), discovery.results));
+            },
+            Err(code) => { engines_failed.push("openalex".to_string()); engine_failures.push(EngineFailure {engine:"openalex".to_string(),code}); }
+        }
+    }
+    if request.bing_rss {
+        engines_queried.insert(0, "bing".to_string());
+        match bing::search(&client, request.query.trim(), request.max_results, timeout).await {
+            Ok(results) => successes.push(("bing".to_string(), results)),
+            Err(code) => {
+                engines_failed.push("bing".to_string());
+                engine_failures.push(EngineFailure {
+                    engine: "bing".to_string(),
+                    code,
+                });
+            }
+        }
+    }
     match duckduckgo::search(&client, request.query.trim(), request.max_results, timeout).await {
         Ok(results) => successes.push(("duckduckgo".to_string(), results)),
         Err(code) => {
-            eprintln!("metadata search engine duckduckgo: {code}");
+            eprintln!("metadata search engine duckduckgo: {code:?}");
             engines_failed.push("duckduckgo".to_string());
+            engine_failures.push(EngineFailure {
+                engine: "duckduckgo".to_string(),
+                code,
+            });
         }
     }
     // Run one upstream engine at a time so its unbounded internal `text()`
@@ -367,17 +480,25 @@ async fn run() {
             Ok(results) if !results.is_empty() => successes.push((name, results)),
             Ok(_) => {
                 eprintln!("metadata search engine {name}: unverified-empty");
+                engine_failures.push(EngineFailure {
+                    engine: name.clone(),
+                    code: FailureCode::UnverifiedEmpty,
+                });
                 engines_failed.push(name);
             }
             Err(error) => {
                 use metadata_search_engine_rs::error::EngineError;
                 let code = match error {
-                    EngineError::Timeout { .. } => "timeout",
-                    EngineError::Http { .. } => "http",
-                    EngineError::BadStatus { .. } => "http-status",
-                    EngineError::ParseFailed { .. } => "parse",
+                    EngineError::Timeout { .. } => FailureCode::Timeout,
+                    EngineError::Http { source, .. } => transport_code(&source, FailureCode::Http),
+                    EngineError::BadStatus { status, .. } => status_code(status),
+                    EngineError::ParseFailed { .. } => FailureCode::Parse,
                 };
-                eprintln!("metadata search engine {name}: {code}");
+                eprintln!("metadata search engine {name}: {code:?}");
+                engine_failures.push(EngineFailure {
+                    engine: name.clone(),
+                    code,
+                });
                 engines_failed.push(name);
             }
         }
@@ -396,7 +517,112 @@ async fn run() {
         engines_queried,
         engines_failed,
     };
-    if serde_json::to_writer(io::stdout().lock(), &response).is_err() {
+    if serde_json::to_writer(
+        io::stdout().lock(),
+        &DiagnosticResponse {
+            response,
+            engine_failures: request.diagnostics.then_some(engine_failures),
+            engine_usage: (request.diagnostics && !engine_usage.is_empty()).then_some(engine_usage),
+        },
+    )
+    .is_err()
+    {
         fail("stdout-write");
     }
+}
+
+#[cfg(test)]
+mod diagnostic_tests {
+    use super::*;
+    #[test]
+    fn emits_categorical_diagnostics_inside_search_protocol() {
+        let response = DiagnosticResponse {
+            response: SearchResponse {
+                query: "query".into(),
+                results: vec![],
+                engines_queried: vec!["brave".into()],
+                engines_failed: vec!["brave".into()],
+            },
+            engine_usage: None,
+            engine_failures: Some(vec![EngineFailure {
+                engine: "brave".into(),
+                code: FailureCode::HttpForbidden,
+            }]),
+        };
+        let value = serde_json::to_value(response).unwrap();
+        assert_eq!(
+            value["engine_failures"],
+            serde_json::json!([{ "engine": "brave", "code": "http-forbidden" }])
+        );
+        assert_eq!(value.as_object().unwrap().len(), 5);
+        assert_eq!(status_code(429), FailureCode::HttpRateLimited);
+        assert_eq!(status_code(302), FailureCode::HttpRedirect);
+        assert_eq!(status_code(503), FailureCode::HttpStatus);
+    }
+    #[test]
+    fn diagnostics_are_an_explicit_boolean_opt_in() {
+        let legacy = serde_json::json!({"schema_version":1,"query":"query","max_results":3,"timeout_ms":15000,"engine_hosts":[]});
+        let old: SearchRequest = serde_json::from_value(legacy.clone()).unwrap();
+        assert!(!old.diagnostics);
+        for requested in [false, true] {
+            let mut input = legacy.clone();
+            input["diagnostics"] = serde_json::json!(requested);
+            let parsed: SearchRequest = serde_json::from_value(input).unwrap();
+            let output = DiagnosticResponse {
+                response: SearchResponse {
+                    query: "query".into(),
+                    results: vec![],
+                    engines_queried: vec![],
+                    engines_failed: vec![],
+                },
+                engine_failures: parsed.diagnostics.then_some(vec![]),
+                engine_usage: None,
+            };
+            let encoded = serde_json::to_value(output).unwrap();
+            assert_eq!(
+                encoded.as_object().unwrap().len(),
+                if requested { 5 } else { 4 }
+            );
+            assert_eq!(encoded.get("engine_failures").is_some(), requested);
+        }
+        for invalid in [
+            serde_json::json!(null),
+            serde_json::json!(1),
+            serde_json::json!("true"),
+        ] {
+            let mut input = legacy.clone();
+            input["diagnostics"] = invalid;
+            assert!(serde_json::from_value::<SearchRequest>(input).is_err());
+        }
+    }
+    #[test]
+    fn optional_bing_preserves_exact_legacy_host_contract() {
+        let mut value = serde_json::json!({"schema_version":1,"query":"query","max_results":3,"timeout_ms":15000,
+            "engine_hosts": expected_hosts(false, false).into_iter().map(|hostname| serde_json::json!({"hostname":hostname,"addresses":[{"address":"93.184.216.34","family":4}]})).collect::<Vec<_>>() });
+        let legacy: SearchRequest = serde_json::from_value(value.clone()).unwrap();
+        assert!(!legacy.bing_rss);
+        assert!(validate_engine_hosts(&legacy).is_ok());
+        value["bing_rss"] = serde_json::json!(true);
+        assert!(validate_engine_hosts(&serde_json::from_value(value.clone()).unwrap()).is_err());
+        value["engine_hosts"].as_array_mut().unwrap().push(serde_json::json!({"hostname":"www.bing.com","addresses":[{"address":"93.184.216.34","family":4}]}));
+        assert!(validate_engine_hosts(&serde_json::from_value(value.clone()).unwrap()).is_ok());
+        value["bing_rss"] = serde_json::json!(false);
+        assert!(validate_engine_hosts(&serde_json::from_value(value.clone()).unwrap()).is_err());
+        value["bing_rss"] = serde_json::json!("true");
+        assert!(serde_json::from_value::<SearchRequest>(value).is_err());
+    }
+    #[test]
+    fn optional_openalex_preserves_legacy_hosts_and_boolean_contract() {
+        let mut value=serde_json::json!({"schema_version":1,"query":"query","max_results":3,"timeout_ms":15000,
+            "engine_hosts":expected_hosts(false,false).into_iter().map(|hostname|serde_json::json!({"hostname":hostname,"addresses":[{"address":"93.184.216.34","family":4}]})).collect::<Vec<_>>()});
+        let legacy:SearchRequest=serde_json::from_value(value.clone()).unwrap();assert!(!legacy.openalex_discovery);
+        value["openalex_discovery"]=serde_json::json!(true);
+        assert!(validate_engine_hosts(&serde_json::from_value(value.clone()).unwrap()).is_err());
+        value["engine_hosts"].as_array_mut().unwrap().push(serde_json::json!({"hostname":"api.openalex.org","addresses":[{"address":"93.184.216.34","family":4}]}));
+        assert!(validate_engine_hosts(&serde_json::from_value(value.clone()).unwrap()).is_ok());
+        value["openalex_discovery"]=serde_json::json!(false);
+        assert!(validate_engine_hosts(&serde_json::from_value(value.clone()).unwrap()).is_err());
+        value["openalex_discovery"]=serde_json::json!("true");assert!(serde_json::from_value::<SearchRequest>(value).is_err());
+    }
+
 }
