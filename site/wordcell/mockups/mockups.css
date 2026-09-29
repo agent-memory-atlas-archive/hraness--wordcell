@@ -1,0 +1,136 @@
+/* Wordcell's additions to the shared mockup frames: the note file in a plain
+ * editor window, and the agent-beside-file pair. Colors come from the kit's
+ * --hkm tokens, so both themes follow the page. */
+.wordcell-note-file {
+  margin: 0;
+  font-family: var(--hkm-mono);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--hkm-fg);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.wordcell-note-line {
+  display: grid;
+  grid-template-columns: 2.2em 1fr;
+  gap: 0.75em;
+  border-radius: 4px;
+}
+
+.wordcell-note-line[data-rule] {
+  background: color-mix(in srgb, var(--hkm-accent) 14%, transparent);
+  font-weight: 600;
+}
+
+.wordcell-note-number {
+  color: var(--hkm-faint);
+  text-align: end;
+  user-select: none;
+}
+
+.wordcell-mockup-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .wordcell-mockup-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.wordcell-showcase-section .hkm-showcase {
+  margin-block: 0;
+}
+
+.wordcell-launch-figure {
+  margin: 1.5rem 0;
+}
+
+/* Launch post: each beat's illustration fills the figure and never scrolls the page sideways. */
+.wordcell-beat-visual {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.wordcell-beats-note {
+  color: var(--color-muted, currentColor);
+  font-size: 0.875rem;
+}
+
+/* Why the name: a citation card, cube into words. Kit tokens keep both themes. */
+.wordcell-name-card {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  grid-template-areas: "shape arrow words" "cite cite cite";
+  align-items: center;
+  gap: 16px 20px;
+  padding: 24px;
+  border: 1px solid var(--hkm-line);
+  border-radius: 12px;
+  background: var(--hkm-card);
+  color: var(--hkm-fg);
+}
+
+.wordcell-name-shape {
+  grid-area: shape;
+  width: 88px;
+  height: 88px;
+  color: var(--hkm-accent);
+}
+
+.wordcell-name-arrow {
+  grid-area: arrow;
+  font-size: 1.5rem;
+  color: var(--hkm-faint);
+}
+
+.wordcell-name-words {
+  grid-area: words;
+  display: grid;
+  gap: 10px;
+}
+
+.wordcell-name-words span {
+  display: block;
+  height: 10px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--hkm-fg) 18%, transparent);
+}
+
+.wordcell-name-words span:first-child {
+  height: auto;
+  background: none;
+  font-family: var(--hkm-mono);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.wordcell-name-words span:nth-child(3) { width: 82%; }
+.wordcell-name-words span:nth-child(4) { width: 58%; }
+
+.wordcell-name-cite {
+  grid-area: cite;
+  display: grid;
+  gap: 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--hkm-line);
+  font-size: 0.875rem;
+  color: var(--hkm-muted);
+}
+
+.wordcell-name-cite a {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--hkm-fg);
+}
+
+.wordcell-name-kicker {
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
