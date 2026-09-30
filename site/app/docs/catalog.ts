@@ -119,6 +119,12 @@ export const docCatalog = [
     quadrant: "reference",
   },
   {
+    slug: "agent-handoffs",
+    title: "Agent setup links",
+    summary: "Supported composer links, setup commands, and storage requirements for coding agents.",
+    quadrant: "reference",
+  },
+  {
     slug: "platform-submission",
     title: "Hosted publication API",
     summary: "Endpoints, MCP tools, tokens, and limits for hosting a site built from selected notes on wordcell.io.",
@@ -157,9 +163,9 @@ export const docCatalog = [
   },
   {
     slug: "evidence",
-    title: "Measure the context an agent receives",
-    summary: "Reproducible studies of handoff size and whether excerpts contain the answer, with inputs, results, and limits.",
-    card: "Reproducible studies of handoff size.",
+    title: "Reproduce Wordcell’s context experiments",
+    summary: "Reproduce source-level experiments on excerpt selection and packed context, using the frozen inputs and recorded results.",
+    card: "Frozen inputs and recorded results.",
     quadrant: "explanation",
   },
   {

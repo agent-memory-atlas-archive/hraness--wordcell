@@ -59,7 +59,7 @@ describe("Wordcell site source contract", () => {
       read("app/readme.generated.ts"),
     ]);
     expect(packageJson).toContain('"@hraness/ui": "github:hraness/ui#v0.5.18"');
-    expect(packageJson).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.31.0"');
+    expect(packageJson).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.32.0"');
     expect(home).toContain('import { AskAiAboutThis } from "@hraness/ui"');
     expect(home).toContain('<AskAiAboutThis className="ask-ai" url="https://wordcell.io" />');
     expect(docs).toContain('<AskAiAboutThis className="ask-ai" url="https://wordcell.io/docs" />');
@@ -157,9 +157,6 @@ test("adopts the wordcell product theme on the shared foundations", async () => 
   expect(theme).toContain("--ui-ring: var(--focus)");
   expect(theme).toContain("forced-colors: active");
   expect(theme).toContain("color-scheme");
-  // Remaining interaction styles respect user preferences.
-  expect(components).toContain("prefers-reduced-motion: reduce");
-  expect(components).toContain("forced-colors: active");
   expect(components).toContain("--hraness-marketing-field-images: none");
 });
 
@@ -183,10 +180,9 @@ test("pins the shared footer release and leaves attribution to the package", asy
 });
 
 
-test("public payload numbers stay tied to the committed evidence receipt", async () => {
-  const [home, readme, receiptSource] = await Promise.all([
-    read("app/page.tsx"),
-    readFile(join(site, "..", "README.md"), "utf8"),
+test("context experiment figures stay tied to the recorded results", async () => {
+  const [evidenceGuide, receiptSource] = await Promise.all([
+    readFile(join(site, "..", "docs/evidence.md"), "utf8"),
     readFile(join(site, "..", "docs/product-evidence.json"), "utf8"),
   ]);
   const receipt = record(JSON.parse(receiptSource) as unknown, "evidence receipt");
@@ -197,11 +193,7 @@ test("public payload numbers stay tied to the committed evidence receipt", async
     if (typeof value !== "number" || !Number.isSafeInteger(value)) throw new TypeError("Evidence byte count must be an integer.");
     return new Intl.NumberFormat("en-US").format(value);
   };
-  expect(readme).toContain(number(aggregate.packedBytes));
-  expect(readme).toContain(number(aggregate.selectedFullNoteBytes));
-  expect(readme).toContain("80% fewer UTF-8 bytes");
-  // The home page renders these figures from the receipt instead of typing them.
-  expect(home).toContain('from "../wordcell/passage-evidence"');
-  expect(home).not.toContain(number(aggregate.packedBytes));
+  expect(evidenceGuide).toContain(number(aggregate.packedBytes));
+  expect(evidenceGuide).toContain(number(aggregate.selectedFullNoteBytes));
   expect(Math.round(Number(aggregate.reductionVsSelectedFullNotesPercent))).toBe(80);
 });

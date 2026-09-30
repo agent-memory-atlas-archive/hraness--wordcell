@@ -5,7 +5,7 @@
   "portfolio": {
     "contract": "hraness.portfolio-public/v1",
     "url": "https://hraness.com/portfolio.json",
-    "digest": "sha256:3e82dac495694ca14dbdea88c58d6781f23725a4005231eb0b5eb4e68d4e4907"
+    "digest": "sha256:28638557fb2323fce51b23d8e94b9f141f2adac771ea22e1d3f50efafdfa47e1"
   },
   "messaging": {
     "formatVersion": 1,
@@ -36,9 +36,9 @@
       "home-agent-search": "Let your agent search and add notes",
       "home-primitives": "What a vault gives you",
       "home-passages": "Find the passage with the answer",
-      "home-scopes": "At home beside a repository",
-      "home-fit": "Where Wordcell fits",
-      "home-publish": "Publish exactly the slice you choose",
+      "home-scopes": "Your coding agent starts with what you already decided",
+      "home-fit": "How Wordcell compares",
+      "home-publish": "Publish your notes as a website",
       "home-trust": "The record stays yours",
       "home-questions": "Before you install",
       "home-related": "Related Hraness tools",
